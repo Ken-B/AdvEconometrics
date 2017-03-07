@@ -1,0 +1,781 @@
+{
+ "cells": [
+  {
+   "cell_type": "code",
+   "execution_count": 1,
+   "metadata": {
+    "collapsed": true
+   },
+   "outputs": [],
+   "source": [
+    "using Distributions"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "assumptions"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 2,
+   "metadata": {
+    "collapsed": false
+   },
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "1"
+      ]
+     },
+     "execution_count": 2,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "β₀ = 10\n",
+    "β₁ = 1\n",
+    "β = [β₀, β₁]\n",
+    "σ² = 1"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "Strict set of GM assumptions:\n",
+    "* X is deterministic, x is thus fixed over repeated samples\n",
+    "* errors $\\mu$ are normally distributed with assumed homoscedastic errors\n",
+    "\n",
+    "Give the small sample and asymptotic properties of the OLS estimator for $\\beta$ and for the estimator of the standard errors.\n",
+    "\n",
+    "Small sample properties:\n",
+    "* best unbiased estimator\n",
+    "* estimator is normally distributed (stems from the fact that $\\hat{\\beta}$ is linear function of disturbance vector $\\mu$)\n",
+    "* covariance matrix $\\sigma^2(X'X)^{-1}$ with an unbiased estimator of $\\sigma^2$ given by\n",
+    "\n",
+    "$$\\hat{\\sigma}^2 = \\frac{\\hat{\\mu}'\\hat{\\mu}}{N-K} = \\frac{y'My}{N-K}$$\n",
+    "\n",
+    "\n",
+    "Asymptotic properties:\n",
+    "* same under the GM conditions\n",
+    "* $\\bar{x}_N$ assymptotically approaches $N(\\mu,\\frac{\\sigma^2}{N})$"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "# Setting up a monte carlo simulation"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "Step 1: specify a population = N(5,2) draw sample once to have a deterministic sample"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 3,
+   "metadata": {
+    "collapsed": false
+   },
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "gen_X (generic function with 1 method)"
+      ]
+     },
+     "execution_count": 3,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "gen_X(sample_size) = hcat(ones(sample_size), rand(Normal(5, 2), sample_size))"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 4,
+   "metadata": {
+    "collapsed": false
+   },
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "gen_μ (generic function with 1 method)"
+      ]
+     },
+     "execution_count": 4,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "function gen_μ(sample_size)\n",
+    "    return randn(sample_size,1)*sqrt(σ²)\n",
+    "end"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 5,
+   "metadata": {
+    "collapsed": false
+   },
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "25×1 Array{Float64,2}:\n",
+       "  0.678191 \n",
+       "  0.221607 \n",
+       "  0.402541 \n",
+       " -0.0451813\n",
+       " -0.205249 \n",
+       " -0.713423 \n",
+       " -0.707502 \n",
+       " -0.0461326\n",
+       " -1.51608  \n",
+       "  0.0589416\n",
+       " -0.206912 \n",
+       " -1.01226  \n",
+       "  0.702741 \n",
+       " -0.715642 \n",
+       "  1.53709  \n",
+       " -0.5118   \n",
+       " -1.03741  \n",
+       " -0.226173 \n",
+       "  0.200182 \n",
+       " -0.799575 \n",
+       " -1.37976  \n",
+       " -0.11869  \n",
+       " -1.07584  \n",
+       "  1.5083   \n",
+       " -0.192665 "
+      ]
+     },
+     "execution_count": 5,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "X = gen_X(25)\n",
+    "μ = gen_μ(25)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 6,
+   "metadata": {
+    "collapsed": false
+   },
+   "outputs": [],
+   "source": [
+    "y = X * β + μ;"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "step 2: calculate statistics and save them (ols estimator, estimated ols standard error, t-statistic)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 7,
+   "metadata": {
+    "collapsed": false
+   },
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "OLS_normal (generic function with 1 method)"
+      ]
+     },
+     "execution_count": 7,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "OLS_normal(y, X) = inv(X'X) * X'y"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "Note that std does not use the standard formulation of standard deviation"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "this gives the true standard error of the total simulation"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 8,
+   "metadata": {
+    "collapsed": false
+   },
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "std_of_x (generic function with 1 method)"
+      ]
+     },
+     "execution_count": 8,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "std_of_x(x) = norm(x - mean(x))/sqrt(length(x))"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 9,
+   "metadata": {
+    "collapsed": false
+   },
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "t_test (generic function with 1 method)"
+      ]
+     },
+     "execution_count": 9,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "t_test(vec,H₀) = (mean(vec) - H₀)/std(vec)"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {
+    "collapsed": true
+   },
+   "source": [
+    "part 2: lagged dependent variable"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "Introducing lagged dependent variables makes it so that the assumption \"X and $\\mu$ are independent\" has to be relaxed to $E[\\mu_t|x_t] = 0$ or thus that the errors are contemporaneously independent with any explanatory variables.\n",
+    "\n",
+    "The OLS estimator becomes:\n",
+    "* Biased: $E[\\hat{\\beta}|X] = \\beta + (X'X)^{-1}X'E[\\mu|X]$ => $E[\\hat{\\beta}] = E_X(E[\\hat{\\beta}|X]) \\neq \\beta$\n",
+    "* Consistent and asymptotically normally distributed: $plim\\hat{\\beta} = \\beta + plim \\frac{X'X}{T}^{-1} plim\\frac{X'\\mu}{T}$ = 0 because $plim\\frac{X'\\mu}{T} = E(x_t\\mu_t) = 0$\n",
+    "* $\\hat{\\sigma}^2 = \\frac{\\hat{\\mu}'\\hat{\\mu}}{T-k}$ is still a consistent estimator for $\\sigma^2$"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 11,
+   "metadata": {
+    "collapsed": false
+   },
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "5×1 Array{Float64,2}:\n",
+       " -1.82753  \n",
+       " -0.693731 \n",
+       " -0.60137  \n",
+       "  0.0725159\n",
+       "  0.459709 "
+      ]
+     },
+     "execution_count": 11,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "β₀ = 10.\n",
+    "β₁ = 0.\n",
+    "β = [β₀, β₁]\n",
+    "σ² = 1\n",
+    "sample_size = 5\n",
+    "μ = randn(sample_size,1)*sqrt(σ²)"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "We need to generate a seed to kickstart the iterative time evolution"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 12,
+   "metadata": {
+    "collapsed": false
+   },
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "5-element Array{Float64,1}:\n",
+       " 0.0\n",
+       " 0.0\n",
+       " 0.0\n",
+       " 0.0\n",
+       " 0.0"
+      ]
+     },
+     "execution_count": 12,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "zeros(5)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 13,
+   "metadata": {
+    "collapsed": false
+   },
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "11.174537768929119"
+      ]
+     },
+     "execution_count": 13,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "y₀ = rand(Normal(β₀/(1-β₁), sqrt(σ²/(1-β₁^2))))"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 14,
+   "metadata": {
+    "collapsed": false
+   },
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "gen_y (generic function with 1 method)"
+      ]
+     },
+     "execution_count": 14,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "function gen_y(β, T, y₀)\n",
+    "    β₀, β₁ = β\n",
+    "    y = zeros(T)\n",
+    "    \n",
+    "    μ = randn()\n",
+    "    y[1] = β₀ + β₁*y₀ + μ\n",
+    "    \n",
+    "    for t = 2:T\n",
+    "        μ = randn()\n",
+    "        y[t] = β₀ + β₁*y[t-1] + μ\n",
+    "    end\n",
+    "    y\n",
+    "end"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 19,
+   "metadata": {
+    "collapsed": false
+   },
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "  0.000008 seconds (131 allocations: 7.875 KB)\n"
+     ]
+    },
+    {
+     "data": {
+      "text/plain": [
+       "10-element Array{Float64,1}:\n",
+       "  9.04671\n",
+       " 10.1256 \n",
+       "  9.00689\n",
+       " 10.3392 \n",
+       "  9.41033\n",
+       "  9.91178\n",
+       "  9.76645\n",
+       "  9.60674\n",
+       " 10.1689 \n",
+       "  9.62597"
+      ]
+     },
+     "execution_count": 19,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "@time gen_y(β, 10, y₀)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 23,
+   "metadata": {
+    "collapsed": false
+   },
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "gen_y! (generic function with 2 methods)"
+      ]
+     },
+     "execution_count": 23,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "function gen_y!(y, β, y₀)\n",
+    "    β₀, β₁ = β\n",
+    "    \n",
+    "    μ = randn()\n",
+    "    y[1] = β₀ + β₁*y₀ + μ\n",
+    "    \n",
+    "    for t = 2:length(y)\n",
+    "        μ = randn()\n",
+    "        y[t] = β₀ + β₁*y[t-1] + μ\n",
+    "    end\n",
+    "end"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 25,
+   "metadata": {
+    "collapsed": false
+   },
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "  0.000005 seconds (4 allocations: 160 bytes)\n"
+     ]
+    },
+    {
+     "data": {
+      "text/plain": [
+       "10-element Array{Float64,1}:\n",
+       "  8.91937\n",
+       " 10.3463 \n",
+       "  9.12763\n",
+       "  9.96545\n",
+       "  9.13978\n",
+       "  9.74982\n",
+       " 11.7051 \n",
+       "  9.2925 \n",
+       "  9.61794\n",
+       " 10.7179 "
+      ]
+     },
+     "execution_count": 25,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "y = zeros(10)\n",
+    "@time gen_y!(y, β, y₀)\n",
+    "y"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 17,
+   "metadata": {
+    "collapsed": false
+   },
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "1×1 Array{Float64,2}:\n",
+       " 10.6383"
+      ]
+     },
+     "execution_count": 17,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "# y_t = β₀ + β₁*y₀ + μ[1]"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 18,
+   "metadata": {
+    "collapsed": false
+   },
+   "outputs": [
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      "WARNING: Method definition one_step_y(Any, Any) in module Main at In[1]:3 overwritten at In[18]:3.\n"
+     ]
+    },
+    {
+     "data": {
+      "text/plain": [
+       "one_step_y (generic function with 1 method)"
+      ]
+     },
+     "execution_count": 18,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "#println(μ)\n",
+    "# function one_step_y(y_t_min_1, mu)\n",
+    "#     y_t = β₀ + β₁*y_t_min_1 + mu\n",
+    "#     return y_t\n",
+    "# end"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 20,
+   "metadata": {
+    "collapsed": false
+   },
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "1×1 Array{Float64,2}:\n",
+       " 10.6383"
+      ]
+     },
+     "execution_count": 20,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "# one_step_y(y₀, μ[1])"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 13,
+   "metadata": {
+    "collapsed": false
+   },
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "5"
+      ]
+     },
+     "execution_count": 13,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "sample_size = 5"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "eventually we drop the seed because there is no information in it, we also keep the seed fixed throughout the simulations"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 14,
+   "metadata": {
+    "collapsed": false
+   },
+   "outputs": [
+    {
+     "ename": "LoadError",
+     "evalue": "MethodError: no method matching one_step_y(::Array{Float64,2})\u001b[0m\nClosest candidates are:\n  one_step_y(::Any, \u001b[1m\u001b[31m::Any\u001b[0m) at In[11]:3\u001b[0m",
+     "output_type": "error",
+     "traceback": [
+      "MethodError: no method matching one_step_y(::Array{Float64,2})\u001b[0m\nClosest candidates are:\n  one_step_y(::Any, \u001b[1m\u001b[31m::Any\u001b[0m) at In[11]:3\u001b[0m",
+      ""
+     ]
+    }
+   ],
+   "source": [
+    "# seed = y₀\n",
+    "# Y = [seed]\n",
+    "# Y = vcat(Y,one_step_y(Y[end]))"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 15,
+   "metadata": {
+    "collapsed": false
+   },
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "-0.946437284256469"
+      ]
+     },
+     "execution_count": 15,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "μ[1]"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 21,
+   "metadata": {
+    "collapsed": false
+   },
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "1-element Array{Array{Float64,2},1}:\n",
+       " [10.6981]"
+      ]
+     },
+     "execution_count": 21,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "seed = y₀\n",
+    "Y = [seed]"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 22,
+   "metadata": {
+    "collapsed": false
+   },
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "gen_Y_lag (generic function with 1 method)"
+      ]
+     },
+     "execution_count": 22,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "function gen_Y_lag()\n",
+    "    for i in 1:sample_size\n",
+    "        Y = vcat(Y,one_step_y(Y[end]))\n",
+    "    end\n",
+    "    return Y\n",
+    "end"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 23,
+   "metadata": {
+    "collapsed": false
+   },
+   "outputs": [
+    {
+     "ename": "LoadError",
+     "evalue": "UndefVarError: Y not defined",
+     "output_type": "error",
+     "traceback": [
+      "UndefVarError: Y not defined",
+      "",
+      " in gen_Y_lag() at ./In[22]:3"
+     ]
+    }
+   ],
+   "source": [
+    "gen_Y_lag()"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {
+    "collapsed": true
+   },
+   "outputs": [],
+   "source": []
+  }
+ ],
+ "metadata": {
+  "kernelspec": {
+   "display_name": "Julia 0.5.0",
+   "language": "julia",
+   "name": "julia-0.5"
+  },
+  "language_info": {
+   "file_extension": ".jl",
+   "mimetype": "application/julia",
+   "name": "julia",
+   "version": "0.5.0"
+  }
+ },
+ "nbformat": 4,
+ "nbformat_minor": 1
+}
