@@ -1,21 +1,21 @@
 #Load the Distributions package. Use `Pkg.install("Distributions")` to install first time.
-using Distributions: TDist, cdf, ccdf
+using Distributions: TDist, ccdf
 
 type regress_results
-  coefs
-  yhat
-  res
-  vcv
-  tstat
-  pval
+    coefs
+    yhat
+    res
+    vcv
+    tstat
+    pval
 end
 
 # Keyword arguments are placed after semicolon.
 # Symbols start with colon, e.g. `:symbol`.
 function ols(y, X; corr=:none, lags=nothing)
 
-    # more stable: β̂ = X \ y, see notes at bottom
-
+    # β̂ = X \ y is more stable than β̂ = inv(X'*X) * X' \ y 
+    # see notes at bottom of case 1 notebook
     β̂ = X \ y
     ŷ = X * β̂
     μ̂ = y - ŷ
@@ -25,23 +25,23 @@ function ols(y, X; corr=:none, lags=nothing)
 
     #use correction for variance covariance
     if corr == :none
-        vcv = σ̂² * (X'*X)\eye(K)
+        vcv = σ̂² * inv(X'*X)
 
     elseif corr == :white
-        newey_west(Xμ̂,0)
+        newey_west(X, μ̂, 0)
     elseif corr == :newey_west
-        vcv = newey_west(X, μ̂, lags)
+        vcv = lags == nothing ? newey_west(X, μ̂) : newey_west(X, μ̂, lags)
     else
         error("wrong argument for correction keyword")
     end
-
+    
     # T statistics for H₀: β₀ = 0
     tstat = β̂ ./ sqrt(diag(vcv))
 
     # absolute value and times two for double sided test
     pval  = 2 * ccdf(TDist(T-K), abs(tstat))
 
-    return regress_results(β̂, ŷ, μ̂, vcv, tstat, pval)
+    regress_results(β̂, ŷ, μ̂, vcv, tstat, pval)
 end
 
 function newey_west(X, μ̂)
@@ -55,7 +55,7 @@ end
 function newey_west(X, μ̂, lags::Integer)
 
     T,K = size(X)
-    XtXInv = (X'*X)\eye(size(K))
+    XtXInv = inv(X'*X)
 
     if lags==0
       # In this case get the White estimator
@@ -76,23 +76,22 @@ function newey_west(X, μ̂, lags::Integer)
 
 end
 
-function gls(y,X,Sigma)
+function gls(y, X, Ω)
 
-  SigmaInv = Sigma\eye(size(Sigma))
-  P=chol(SimgaInv)
-  return ols(P*y,P*X)
+  P = chol(inv(Ω))
+  return ols(P*y, P*X)
 
 end
 
-function gmm(y,X,Z;corr=:none,lags=nothing)
+function gmm(y, X, Z; corr=:none, lags=nothing)
 
-  T,Kx = size(X)
-  T,Kz = size(Z)
+  T, Kx = size(X)
+  T, Kz = size(Z)
 
   if corr==:none
 
     # Generalized 1-step IV estimator
-    W = (Z'*Z)\eye(Kz)
+    W = inv(Z'*Z)
 
   elseif corr==:white | corr==:newey_west
 
@@ -120,7 +119,7 @@ function gmm(y,X,Z;corr=:none,lags=nothing)
   ZtX = Z'*X
   XtZ = X'*Z
 
-  XtZ_W_ZtXInv = (XtZ*W*ZtX)\eye(Kx)
+  XtZ_W_ZtXInv = inv(XtZ*W*ZtX)
   β̂  = XtZ_W_ZtXInv*(XtZ*W*Z'*y)
   ŷ = X * β̂
   μ̂ = y - ŷ
