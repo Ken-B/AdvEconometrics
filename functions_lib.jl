@@ -12,7 +12,7 @@ end
 
 # Keyword arguments are placed after semicolon.
 # Symbols start with colon, e.g. `:symbol`.
-function ols(y, X; corr=:none, lags=nothing)
+function ols(y, X; corr=:none, lags::Int=Int(floor(size(X,1)^(1/4))))
 
     # β̂ = X \ y is more stable than β̂ = inv(X'*X) * X' \ y 
     # see notes at bottom of case 1 notebook
@@ -29,12 +29,12 @@ function ols(y, X; corr=:none, lags=nothing)
     elseif corr == :white
         vcv = newey_west(X, μ̂, 0)
     elseif corr == :newey_west
-        vcv = lags == nothing ? newey_west(X, μ̂) : newey_west(X, μ̂, lags)
+        vcv = newey_west(X, μ̂, lags)
     else
         error("wrong argument for correction keyword")
     end
     
-    # T statistics for H₀: β₀ = 0
+    # T statistics for H₀: βᵢ = 0
     tstat = β̂ ./ sqrt(diag(vcv))
 
     # absolute value and times two for double sided test
@@ -43,36 +43,28 @@ function ols(y, X; corr=:none, lags=nothing)
     regress_results(β̂, ŷ, μ̂, vcv, tstat, pval)
 end
 
-function newey_west(X, μ̂)
-
-  T, K = size(X)
-  lags = Int(floor(T^(1/4)))
-  return  newey_west(X, μ̂, lags)
-
-end
 
 function newey_west(X, μ̂, lags::Integer)
 
-    T,K = size(X)
     XtXInv = inv(X'*X)
-
-    if lags==0
-      # In this case get the White estimator
-      return XtXInv * X' * diagm(μ̂.^2) * X * XtXInv
+    T, K = size(X)
+    
+    if lags==0 # White estimator
+        return XtXInv * X' * diagm(μ̂.^2) * X * XtXInv
     end
 
     vcv = zeros(K, K)
-    for lag in 0:lags
+    for t = 1:T
+        vcv += μ̂[t]^2 * (X[t,:] * X[t,:]')
+    end
+    for lag in 1:lags
         w = 1 - lag / (lags + 1)
         for t in (lag + 1):T
             # Calculates the off-diagonal terms
-            update = w * μ̂[t] * μ̂[t-lag] * (X[t-lag,:]*X[t,:]' + X[t,:]*X[t-lag,:]')
-            vcv = vcv + update
+            vcv += w * μ̂[t] * μ̂[t-lag] * (X[t-lag,:]*X[t,:]' + X[t,:]*X[t-lag,:]')            
         end
     end
     vcv = XtXInv * vcv * XtXInv
-    return vcv
-
 end
 
 function gls(y, X, Ω)
