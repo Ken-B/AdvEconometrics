@@ -26,9 +26,8 @@ function ols(y, X; corr=:none, lags=nothing)
     #use correction for variance covariance
     if corr == :none
         vcv = σ̂² * inv(X'*X)
-
     elseif corr == :white
-        newey_west(X, μ̂, 0)
+        vcv = newey_west(X, μ̂, 0)
     elseif corr == :newey_west
         vcv = lags == nothing ? newey_west(X, μ̂) : newey_west(X, μ̂, lags)
     else
