@@ -59,8 +59,7 @@ function newey_west(X, μ̂, lags::Integer)
     end
     for lag in 1:lags
         w = 1 - lag / (lags + 1)
-        for t in (lag + 1):T
-            # Calculates the off-diagonal terms
+        for t in (lag + 1):T # Calculates the off-diagonal terms           
             vcv += w * μ̂[t] * μ̂[t-lag] * (X[t-lag,:]*X[t,:]' + X[t,:]*X[t-lag,:]')            
         end
     end
